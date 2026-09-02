@@ -1,882 +1,795 @@
-यह समस्या इसलिए आ रही थी क्योंकि Google AI Studio के कुछ फ्री अकाउंट्स पर `v1beta` API वर्शन में डायरेक्ट मॉडल लिस्टिंग (`models?key=...`) ब्लॉक होती है। जब ऐप बैकग्राउंड में मॉडल्स की लिस्ट ढूंढने की कोशिश करता है, तो Google का सर्वर उसे रिजेक्ट करके "Failure" दिखा देता है।
-
-हमने इसका **सबसे सरल और 100% फुलप्रूफ इलाज** कर दिया है:
-1. **Direct Universal Model Targeting:** अब ऐप बिना किसी फालतू चेकिंग के सीधे Google के सबसे भरोसेमंद और स्टेबल मॉडल **`gemini-1.5-flash`** को टारगेट करेगा, जो हर एक फ्री API Key पर 100% चलता है।
-2. **Robust Fallback:** अगर किसी कारणवश पहला प्रयास फेल होता है, तो यह तुरंत `gemini-1.5-flash-latest` पर स्विच कर लेगा।
-3. **Clear Error Diagnostics:** अगर अब भी कोई एरर आता है, तो ऐप आपको सीधे Google का असली एरर मैसेज हिंदी में समझाएगा कि गड़बड़ कहाँ है।
-
----
-
-# 🚀 Step 1: GitHub पर `script.js` को पूरा बदलें
-
-अपनी GitHub Repository (`my-quiz`) खोलें ➔ **`script.js`** पर क्लिक करें ➔ **Edit (✏️)** पर क्लिक करें ➔ पुराना सारा कोड डिलीट करके यह नया और सबसे भरोसेमंद कोड पेस्ट करें ➔ **Commit changes** पर क्लिक करें:
-
-### 📄 File: `script.js` (पूरा कोड)
-
-```javascript
-/* ==========================================================================
-   QUIZ MASTER PRO - STABLE & FOOLPROOF GEMINI 1.5 FLASH ENGINE
-   ========================================================================== */
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-let appData = {
-    chapters: [],
-    history: [],
-    stats: { totalQuizzes: 0, totalCorrect: 0, totalQuestions: 0 }
-};
-
-let currentQuiz = null;
-let currentQuizChId = null;
-let timerInterval = null;
-let selectedBase64Images = [];
-
-// ==================== INITIALIZATION ====================
-function loadState() {
-    const saved = localStorage.getItem('QuizMasterPro_DB');
-    if (saved) {
-        try { appData = JSON.parse(saved); } catch (e) {}
-    }
-    updateApiKeyStatus();
-    updateUIOverview();
-}
-
-function saveState() {
-    localStorage.setItem('QuizMasterPro_DB', JSON.stringify(appData));
-    updateUIOverview();
-}
-
-// ==================== API KEY MANAGEMENT & TESTER ====================
-function getApiKey() {
-    return (localStorage.getItem('GEMINI_API_KEY') || '').trim();
-}
-
-function saveApiKey() {
-    const key = document.getElementById('gemini-api-key-input').value.trim();
-    if (!key) { alert('Kripya valid API key enter karein!'); return; }
-    localStorage.setItem('GEMINI_API_KEY', key);
-    closeKeyModal();
-    updateApiKeyStatus();
-    alert('✅ API Key successfully save ho gayi! Ab "Test Key" dabakar check karein.');
-}
-
-async function testApiKeyLive() {
-    const key = (document.getElementById('gemini-api-key-input').value || getApiKey()).trim();
-    if (!key) {
-        alert('Pehle API Key box me paste karein!');
-        return;
-    }
-
-    const testBtn = document.getElementById('test-key-btn');
-    if (testBtn) testBtn.textContent = '⏳ Testing...';
-
-    try {
-        // Direct test with universal gemini-1.5-flash model
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: "Hello" }] }]
-            })
-        });
-
-        const data = await res.json();
-        
-        if (res.ok && data.candidates) {
-            alert('🎉 SUCCESS!\nAapki API Key aur gemini-1.5-flash model 100% sahi kaam kar rahe hain!\n\nAb aap photo scan kar sakte hain.');
-            localStorage.setItem('GEMINI_API_KEY', key);
-            updateApiKeyStatus();
-        } else {
-            const errMsg = data.error?.message || JSON.stringify(data);
-            alert('❌ API Key active nahi hai!\n\nGoogle Error: ' + errMsg + '\n\nTip: Google AI Studio me jaakar ek baar "Create API Key" se nayi key banayein.');
-        }
-    } catch (e) {
-        alert('❌ Network Error: Connection nahi ho paya. Internet check karein.');
-    } finally {
-        if (testBtn) testBtn.textContent = '🔍 Test Key';
-    }
-}
-
-function updateApiKeyStatus() {
-    const key = getApiKey();
-    const btn = document.getElementById('key-status-btn');
-    const txt = document.getElementById('key-btn-txt');
-    if (key) {
-        btn.classList.add('active-key');
-        txt.textContent = 'AI Key: Active';
-    } else {
-        btn.classList.remove('active-key');
-        txt.textContent = 'Set AI Key';
-    }
-}
-
-function openKeyModal() {
-    document.getElementById('gemini-api-key-input').value = getApiKey();
-    document.getElementById('key-modal').classList.add('active');
-}
-
-function closeKeyModal() {
-    document.getElementById('key-modal').classList.remove('active');
-}
-
-// ==================== NAVIGATION ====================
-function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    const target = document.getElementById(`${screenId}-screen`);
-    if (target) target.classList.add('active');
-
-    const bNav = document.getElementById('bottom-nav');
-    if (screenId === 'quiz' || screenId === 'loading') {
-        bNav.style.display = 'none';
-    } else {
-        bNav.style.display = 'flex';
-    }
-}
-
-function switchNav(screenName) {
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.screen === screenName);
-    });
-    showScreen(screenName);
-}
-
-// ==================== UI OVERVIEW & PLAYLIST ====================
-function updateUIOverview() {
-    const totalQ = appData.chapters.reduce((sum, c) => sum + c.questions.length, 0);
-    document.getElementById('quick-ch-count').textContent = appData.chapters.length;
-    document.getElementById('quick-q-count').textContent = totalQ;
-    document.getElementById('chapter-total-badge').textContent = `${appData.chapters.length} Chapters`;
-
-    renderRecentList();
-    renderChaptersGrid();
-    renderAnalyticsView();
-    populateChapterDropdowns();
-}
-
-function renderRecentList() {
-    const container = document.getElementById('home-recent-list');
-    if (!appData.chapters.length) {
-        container.innerHTML = `<p style="color:var(--text-low);font-size:0.8rem;text-align:center;padding:20px;">Koi chapter nahi hai. "📸" button se photo scan karein.</p>`;
-        return;
-    }
-    const recents = [...appData.chapters].reverse().slice(0, 3);
-    container.innerHTML = recents.map(ch => `
-        <div class="ch-item-card" onclick="openQuizSetup('${ch.id}')">
-            <div class="ch-left">
-                <div class="ch-icon-pill">📖</div>
-                <div class="ch-details">
-                    <h4>${escapeHTML(ch.name)}</h4>
-                    <div class="ch-meta">
-                        <span>📝 ${ch.questions.length} Qs</span>
-                        <span>🏆 ${ch.bestScore !== undefined ? ch.bestScore + '%' : 'Unplayed'}</span>
-                    </div>
-                </div>
-            </div>
-            <span style="color:var(--primary-light)">▶</span>
-        </div>
-    `).join('');
-}
-
-function renderChaptersGrid(filter = '') {
-    const container = document.getElementById('chapters-list');
-    let list = appData.chapters;
-    if (filter) {
-        list = list.filter(c => c.name.toLowerCase().includes(filter.toLowerCase()));
-    }
-    if (!list.length) {
-        container.innerHTML = `<p style="color:var(--text-low);font-size:0.85rem;text-align:center;padding:30px;">Koi chapter nahi mila.</p>`;
-        return;
-    }
-    container.innerHTML = list.map(ch => `
-        <div class="ch-item-card" onclick="openQuizSetup('${ch.id}')">
-            <div class="ch-left">
-                <div class="ch-icon-pill">📖</div>
-                <div class="ch-details">
-                    <h4>${escapeHTML(ch.name)}</h4>
-                    <div class="ch-meta">
-                        <span>📝 ${ch.questions.length} Questions</span>
-                        <span>🏆 Best: ${ch.bestScore !== undefined ? ch.bestScore + '%' : '-'}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="ch-actions">
-                <button class="btn-add-page-chip" onclick="event.stopPropagation();quickAddMorePages('${ch.id}')" title="Is chapter me aur page jodo">
-                    ➕ Add Page
-                </button>
-                <button class="btn-icon-ghost" onclick="event.stopPropagation();deleteChapter('${ch.id}')">🗑️</button>
-            </div>
-        </div>
-    `).join('');
-}
-
-function filterChapters(val) { renderChaptersGrid(val); }
-
-function deleteChapter(id) {
-    if (confirm('Kya aap is chapter ko delete karna chahte hain?')) {
-        appData.chapters = appData.chapters.filter(c => c.id !== id);
-        saveState();
-    }
-}
-
-function populateChapterDropdowns() {
-    const aiSelect = document.getElementById('ai-existing-ch-select');
-    const manualSelect = document.getElementById('manual-existing-ch-select');
+:root {
+    --bg-base: #080911;
+    --bg-surface: #101321;
+    --bg-surface-elevated: #181C30;
+    --bg-surface-hover: #222742;
     
-    if (!appData.chapters.length) {
-        const emptyOpt = `<option value="">Koi purana chapter nahi hai</option>`;
-        aiSelect.innerHTML = emptyOpt;
-        manualSelect.innerHTML = emptyOpt;
-        return;
-    }
-
-    const optionsHTML = appData.chapters.map(ch => `
-        <option value="${ch.id}">${escapeHTML(ch.name)} (${ch.questions.length} Qs)</option>
-    `).join('');
-
-    aiSelect.innerHTML = optionsHTML;
-    manualSelect.innerHTML = optionsHTML;
-}
-
-function quickAddMorePages(chapterId) {
-    openCameraModal();
-    setChapterTargetMode('existing');
-    document.getElementById('ai-existing-ch-select').value = chapterId;
-}
-
-// ==================== 📸 AUTO COMPRESS & PREVIEW ====================
-function openCameraModal() {
-    selectedBase64Images = [];
-    document.getElementById('ai-ch-name').value = '';
-    document.getElementById('multi-preview-container').innerHTML = '';
-    document.getElementById('multi-preview-container').classList.add('hidden');
-    document.getElementById('camera-file-label').textContent = 'Aap ek saath 1 ya zyada photos select kar sakte hain';
-    setChapterTargetMode('new');
-    document.getElementById('camera-modal').classList.add('active');
-}
-
-function closeCameraModal() {
-    document.getElementById('camera-modal').classList.remove('active');
-}
-
-function setChapterTargetMode(mode) {
-    const isExisting = (mode === 'existing');
-    document.getElementById('pill-mode-new').classList.toggle('active', !isExisting);
-    document.getElementById('pill-mode-existing').classList.toggle('active', isExisting);
-    document.getElementById('group-new-ch').classList.toggle('hidden', isExisting);
-    document.getElementById('group-existing-ch').classList.toggle('hidden', !isExisting);
-}
-
-function compressImage(file, maxWidth = 1600, quality = 0.85) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target.result;
-            img.onload = () => {
-                let width = img.width;
-                let height = img.height;
-
-                if (width > maxWidth) {
-                    height = Math.round((height * maxWidth) / width);
-                    width = maxWidth;
-                }
-
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-
-                const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                resolve(dataUrl);
-            };
-            img.onerror = (err) => reject(err);
-        };
-        reader.onerror = (err) => reject(err);
-    });
-}
-
-async function handleMultiImageSelect(input) {
-    if (input.files && input.files.length > 0) {
-        selectedBase64Images = [];
-        const container = document.getElementById('multi-preview-container');
-        container.innerHTML = '';
-        container.classList.remove('hidden');
-        
-        document.getElementById('camera-file-label').textContent = `⏳ Compressing ${input.files.length} Photo(s)...`;
-
-        for (let idx = 0; idx < input.files.length; idx++) {
-            const file = input.files[idx];
-            try {
-                const compressedDataUrl = await compressImage(file);
-                const b64 = compressedDataUrl.replace(/^data:image\/[a-z]+;base64,/, '');
-                selectedBase64Images.push(b64);
-
-                const thumb = document.createElement('div');
-                thumb.className = 'preview-thumb';
-                thumb.innerHTML = `
-                    <img src="${compressedDataUrl}" alt="Page ${idx + 1}">
-                    <span class="page-tag">Page ${idx + 1}</span>
-                `;
-                container.appendChild(thumb);
-            } catch (err) {
-                console.error("Compression error on image " + idx, err);
-            }
-        }
-        document.getElementById('camera-file-label').textContent = `✅ ${selectedBase64Images.length} Photo(s) Ready!`;
-    }
-}
-
-// ==================== 🤖 GEMINI AI ENGINE (DIRECT v1beta CALL) ====================
-async function processAiPhotoSubmit() {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-        alert('Pehle apni Free Google AI Key set karein!\n(Upar "Set AI Key" button par click karein)');
-        openKeyModal();
-        return;
-    }
-
-    if (!selectedBase64Images.length) {
-        alert('Kripya pehle 1 ya zyada photos select karein!');
-        return;
-    }
-
-    const isExisting = document.getElementById('pill-mode-existing').classList.contains('active');
-    let targetChapterId = null;
-    let chapterName = '';
-
-    if (isExisting) {
-        targetChapterId = document.getElementById('ai-existing-ch-select').value;
-        if (!targetChapterId) { alert('Kripya ek valid chapter chunein!'); return; }
-        chapterName = appData.chapters.find(c => c.id === targetChapterId).name;
-    } else {
-        chapterName = document.getElementById('ai-ch-name').value.trim() || `Hindi Chapter ${appData.chapters.length + 1}`;
-    }
-
-    closeCameraModal();
-    showScreen('loading');
-
-    const totalPages = selectedBase64Images.length;
-    let allExtractedQuestions = [];
-
-    for (let i = 0; i < totalPages; i++) {
-        document.getElementById('loading-text').textContent = `Page ${i + 1} of ${totalPages} scan ho raha hai...`;
-        document.getElementById('loading-subtext').textContent = 'AI Hindi Devanagari questions decode kar raha hai...';
-
-        try {
-            const pageQuestions = await extractQuestionsFromSingleImage(selectedBase64Images[i], apiKey);
-            if (Array.isArray(pageQuestions) && pageQuestions.length > 0) {
-                allExtractedQuestions = allExtractedQuestions.concat(pageQuestions);
-            }
-        } catch (err) {
-            console.error(`Page ${i + 1} extraction error:`, err);
-            alert(`⚠️ Page ${i + 1} Scan Issue:\n` + err.message);
-        }
-    }
-
-    if (allExtractedQuestions.length === 0) {
-        alert('❌ Photo se questions extract nahi ho sake!\n\nTips:\n1. Check karein ki photo me questions saaf dikh rahe hon.\n2. Set AI Key me jaakar Test Key dabayein.');
-        showScreen('home');
-        return;
-    }
-
-    saveOrAppendQuestions(targetChapterId, chapterName, allExtractedQuestions);
-}
-
-// Directly targets stable gemini-1.5-flash with bulletproof request payload
-async function extractQuestionsFromSingleImage(base64Data, apiKey) {
-    const prompt = `
-Extract all multiple-choice questions (MCQs) from this image.
-The text may be in Hindi (Devanagari script), English, or bilingual.
-
-Strict Rules:
-1. Extract EVERY question, options (A, B, C, D), correct answer, and brief explanation.
-2. If options are (क, ख, ग, घ) or (1, 2, 3, 4), map them to (A, B, C, D).
-3. If the correct answer is not explicitly written, logically solve and select the correct option.
-4. Output MUST be ONLY a JSON array. Do NOT wrap in markdown \`\`\`json. No conversational text.
-
-Format:
-[
-  {
-    "id": 1,
-    "question": "प्रश्न यहाँ लिखें",
-    "options": [
-      {"label": "A", "text": "पहला विकल्प"},
-      {"label": "B", "text": "दूसरा विकल्प"},
-      {"label": "C", "text": "तीसरा विकल्प"},
-      {"label": "D", "text": "चौथा विकल्प"}
-    ],
-    "answer": "A",
-    "explanation": "संक्षिप्त व्याख्या यहाँ लिखें"
-  }
-]
-`;
-
-    const requestBody = {
-        contents: [
-            {
-                role: "user",
-                parts: [
-                    { text: prompt },
-                    {
-                        inlineData: {
-                            mimeType: "image/jpeg",
-                            data: base64Data
-                        }
-                    }
-                ]
-            }
-        ],
-        generationConfig: {
-            temperature: 0.15,
-            topP: 0.95
-        }
-    };
-
-    // Safe, direct, stable URL targeting gemini-1.5-flash
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errMsg = errorData.error?.message || `HTTP ${response.status} Error`;
-        throw new Error(errMsg);
-    }
-
-    const data = await response.json();
-    if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
-        throw new Error("AI ne response me koi text return nahi kiya.");
-    }
-
-    let textResponse = data.candidates[0].content.parts[0].text.trim();
-
-    // Safely extract the JSON array
-    const jsonMatch = textResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
-    if (!jsonMatch) {
-        throw new Error("AI output me valid JSON question structure nahi mila: " + textResponse.substring(0, 100));
-    }
-
-    return JSON.parse(jsonMatch[0]);
-}
-
-// ==================== MANUAL ADD HANDLERS ====================
-function openAddModal() {
-    document.getElementById('add-ch-name').value = '';
-    document.getElementById('paste-text-input').value = '';
-    setManualTargetMode('new');
-    document.getElementById('add-modal').classList.add('active');
-}
-
-function closeAddModal() { document.getElementById('add-modal').classList.remove('active'); }
-
-function setManualTargetMode(mode) {
-    const isExisting = (mode === 'existing');
-    document.getElementById('pill-manual-new').classList.toggle('active', !isExisting);
-    document.getElementById('pill-manual-existing').classList.toggle('active', isExisting);
-    document.getElementById('group-manual-new').classList.toggle('hidden', isExisting);
-    document.getElementById('group-manual-existing').classList.toggle('hidden', !isExisting);
-}
-
-function setAddTab(tabName) {
-    document.querySelectorAll('.tab-toggle-pill .pill-btn').forEach((b, i) => {
-        b.classList.toggle('active', (tabName === 'text' && i === 0) || (tabName === 'word' && i === 1) || (tabName === 'pdf' && i === 2));
-    });
-    document.getElementById('tab-text').classList.toggle('active', tabName === 'text');
-    document.getElementById('tab-word').classList.toggle('active', tabName === 'word');
-    document.getElementById('tab-pdf').classList.toggle('active', tabName === 'pdf');
-}
-
-function updateFileLabel(input, labelId) {
-    if (input.files && input.files[0]) {
-        document.getElementById(labelId).textContent = `✅ Selected: ${input.files[0].name}`;
-    }
-}
-
-function parseUniversalQuizText(text) {
-    const questions = [];
-    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-    const questionBlocks = text.split(/(?:^|\n)\s*(?:Q\.?\s*|Question\s*|प्रश्न\s*)?(\d+)[\.\)\:\-]\s*/gi);
-
-    for (let i = 1; i < questionBlocks.length; i += 2) {
-        const qNum = questionBlocks[i];
-        const content = questionBlocks[i + 1];
-        if (!content) continue;
-
-        const optMatches = [...content.matchAll(/(?:^|\n|\s)\s*\(?([A-Da-d1-4])\)?[\.\)\:\-]\s*([^\n\r]+)/g)];
-
-        if (optMatches.length >= 2) {
-            const firstOptIdx = optMatches[0].index;
-            let qText = content.substring(0, firstOptIdx).trim();
-            if (!qText) qText = `Question ${qNum}`;
-
-            const options = optMatches.slice(0, 4).map(m => {
-                let lbl = m[1].toUpperCase();
-                if (lbl === '1') lbl = 'A';
-                if (lbl === '2') lbl = 'B';
-                if (lbl === '3') lbl = 'C';
-                if (lbl === '4') lbl = 'D';
-                return { label: lbl, text: m[2].trim() };
-            });
-
-            let answer = '';
-            const ansM = content.match(/(?:Answer|Ans|Correct|उत्तर)[\s\.\:\-]*\(?([A-Da-d1-4])/i);
-            if (ansM) {
-                answer = ansM[1].toUpperCase();
-                if (answer === '1') answer = 'A';
-                if (answer === '2') answer = 'B';
-                if (answer === '3') answer = 'C';
-                if (answer === '4') answer = 'D';
-            }
-
-            let exp = '';
-            const expM = content.match(/(?:Explanation|Exp|व्याख्या|Solution|Sol)[\s\.\:\-]*([^\n\r]+(?:\n[^\n\r]+)*)/i);
-            if (expM) exp = expM[1].trim();
-
-            questions.push({ id: qNum, question: qText, options: options, answer: answer, explanation: exp });
-        }
-    }
-    return questions;
-}
-
-function processTextSubmit() {
-    const isExisting = document.getElementById('pill-manual-existing').classList.contains('active');
-    let targetId = null;
-    let name = '';
-
-    if (isExisting) {
-        targetId = document.getElementById('manual-existing-ch-select').value;
-        name = appData.chapters.find(c => c.id === targetId).name;
-    } else {
-        name = document.getElementById('add-ch-name').value.trim() || 'New Chapter';
-    }
-
-    const text = document.getElementById('paste-text-input').value.trim();
-    if (!text) { alert('Kripya text paste karein!'); return; }
-
-    const questions = parseUniversalQuizText(text);
-    if (!questions.length) { alert('Questions detect nahi huye. Format check karein.'); return; }
-
-    saveOrAppendQuestions(targetId, name, questions);
-}
-
-async function processWordSubmit() {
-    const isExisting = document.getElementById('pill-manual-existing').classList.contains('active');
-    let targetId = isExisting ? document.getElementById('manual-existing-ch-select').value : null;
-    let name = isExisting ? appData.chapters.find(c => c.id === targetId).name : (document.getElementById('add-ch-name').value.trim() || 'Word Chapter');
-
-    const file = document.getElementById('word-file-input').files[0];
-    if (!file) { alert('Word file select karein!'); return; }
-    closeAddModal();
-    showScreen('loading');
-    try {
-        const buffer = await file.arrayBuffer();
-        const res = await mammoth.extractRawText({ arrayBuffer: buffer });
-        const questions = parseUniversalQuizText(res.value);
-        saveOrAppendQuestions(targetId, name, questions);
-    } catch (e) { alert('Error: ' + e.message); showScreen('home'); }
-}
-
-async function processPdfSubmit() {
-    const isExisting = document.getElementById('pill-manual-existing').classList.contains('active');
-    let targetId = isExisting ? document.getElementById('manual-existing-ch-select').value : null;
-    let name = isExisting ? appData.chapters.find(c => c.id === targetId).name : (document.getElementById('add-ch-name').value.trim() || 'PDF Chapter');
-
-    const file = document.getElementById('pdf-file-input').files[0];
-    if (!file) { alert('PDF file select karein!'); return; }
-    closeAddModal();
-    showScreen('loading');
-    try {
-        const buffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
-        let fullText = '';
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            fullText += content.items.map(x => x.str).join(' ') + '\n';
-        }
-        const questions = parseUniversalQuizText(fullText);
-        saveOrAppendQuestions(targetId, name, questions);
-    } catch (e) { alert('Error: ' + e.message); showScreen('home'); }
-}
-
-// ==================== CORE SAVE / APPEND ====================
-function saveOrAppendQuestions(targetChapterId, chapterName, newQuestions) {
-    if (targetChapterId) {
-        const chapter = appData.chapters.find(c => c.id === targetChapterId);
-        if (chapter) {
-            const existingCount = chapter.questions.length;
-            const formattedNewQuestions = newQuestions.map((q, idx) => ({
-                ...q,
-                id: existingCount + idx + 1
-            }));
-            chapter.questions = chapter.questions.concat(formattedNewQuestions);
-            saveState();
-            closeAddModal();
-            closeCameraModal();
-            switchNav('chapters');
-            alert(`✅ Success! "${chapter.name}" me ${formattedNewQuestions.length} naye questions jud gaye!\n(Total Ab: ${chapter.questions.length} Questions)`);
-            return;
-        }
-    }
-
-    const formattedQuestions = newQuestions.map((q, idx) => ({ ...q, id: idx + 1 }));
-    appData.chapters.push({
-        id: 'ch_' + Date.now(),
-        name: chapterName,
-        questions: formattedQuestions
-    });
-    saveState();
-    closeAddModal();
-    closeCameraModal();
-    switchNav('chapters');
-    alert(`🎉 Success! Naya Chapter "${chapterName}" ban gaya jisme ${formattedQuestions.length} questions hain.`);
-}
-
-// ==================== QUIZ SETUP & LAUNCH ====================
-function openQuizSetup(chId) {
-    currentQuizChId = chId;
-    let total = 0;
-    let title = '';
-
-    if (chId === 'combined') {
-        total = appData.chapters.reduce((sum, c) => sum + c.questions.length, 0);
-        title = '🔀 Mega Combined Quiz';
-    } else {
-        const ch = appData.chapters.find(c => c.id === chId);
-        if (!ch) return;
-        total = ch.questions.length;
-        title = ch.name;
-    }
-
-    if (total === 0) { alert('Koi question uplabdh nahi hai.'); return; }
-
-    document.getElementById('setup-target-title').textContent = title;
-    document.getElementById('setup-target-meta').textContent = `Total Available: ${total} Questions`;
+    --primary: #6366F1;
+    --primary-glow: rgba(99, 102, 241, 0.4);
+    --primary-light: #818CF8;
     
-    const startIn = document.getElementById('setup-start-num');
-    const countIn = document.getElementById('setup-count-num');
-    startIn.max = total;
-    startIn.value = 1;
-    countIn.max = total;
-    countIn.value = total;
-
-    document.getElementById('setup-modal').classList.add('active');
+    --cyan: #06B6D4;
+    --cyan-glow: rgba(6, 182, 212, 0.35);
+    
+    --emerald: #10B981;
+    --emerald-bg: rgba(16, 185, 129, 0.12);
+    
+    --rose: #F43F5E;
+    --rose-bg: rgba(244, 63, 94, 0.12);
+    
+    --amber: #F59E0B;
+    
+    --border-subtle: rgba(255, 255, 255, 0.07);
+    --border-highlight: rgba(255, 255, 255, 0.15);
+    
+    --text-high: #FFFFFF;
+    --text-med: #94A3B8;
+    --text-low: #64748B;
+    
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-full: 9999px;
+    
+    --nav-height: 68px;
+    --header-height: 60px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-function closeSetupModal() { document.getElementById('setup-modal').classList.remove('active'); }
-
-function launchQuizEngine() {
-    let allQuestions = [];
-    if (currentQuizChId === 'combined') {
-        appData.chapters.forEach(c => c.questions.forEach(q => allQuestions.push({ ...q, chName: c.name })));
-    } else {
-        const ch = appData.chapters.find(c => c.id === currentQuizChId);
-        allQuestions = [...ch.questions];
-    }
-
-    let start = parseInt(document.getElementById('setup-start-num').value) || 1;
-    let count = parseInt(document.getElementById('setup-count-num').value) || allQuestions.length;
-    const shuffle = document.getElementById('setup-shuffle-toggle').checked;
-
-    closeSetupModal();
-
-    let selected = allQuestions.slice(start - 1, start - 1 + count);
-
-    if (shuffle) {
-        for (let i = selected.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [selected[i], selected[j]] = [selected[j], selected[i]];
-        }
-    }
-
-    currentQuiz = {
-        questions: selected,
-        index: 0,
-        score: 0,
-        wrong: 0,
-        startTime: Date.now()
-    };
-
-    const chapterTitle = currentQuizChId === 'combined' ? 'Combined Quiz' : appData.chapters.find(c => c.id === currentQuizChId).name;
-    document.getElementById('quiz-chapter-tag').textContent = chapterTitle;
-
-    showScreen('quiz');
-    startTimer();
-    renderQuizQuestion();
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
-// ==================== ACTIVE QUIZ ====================
-function startTimer() {
-    clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - currentQuiz.startTime) / 1000);
-        const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
-        const s = String(elapsed % 60).padStart(2, '0');
-        document.getElementById('quiz-timer').textContent = `⏱ ${m}:${s}`;
-    }, 1000);
+body {
+    background-color: var(--bg-base);
+    color: var(--text-high);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
 }
 
-function renderQuizQuestion() {
-    const q = currentQuiz.questions[currentQuiz.index];
-    const total = currentQuiz.questions.length;
-
-    document.getElementById('q-number-tag').textContent = `QUESTION ${currentQuiz.index + 1} OF ${total}`;
-    document.getElementById('question-text').textContent = q.question;
-    document.getElementById('q-counter-badge').textContent = `Q ${currentQuiz.index + 1}/${total}`;
-    document.getElementById('quiz-score-c').textContent = currentQuiz.score;
-    document.getElementById('quiz-score-w').textContent = currentQuiz.wrong;
-
-    const pct = ((currentQuiz.index + 1) / total) * 100;
-    document.getElementById('progress-bar-fill').style.width = `${pct}%`;
-
-    document.getElementById('explanation-box').classList.add('hidden');
-    document.getElementById('next-btn').classList.add('hidden');
-    document.getElementById('finish-btn').classList.add('hidden');
-
-    const optBox = document.getElementById('options-container');
-    optBox.innerHTML = q.options.map(opt => `
-        <button class="option-card" onclick="handleOptionSelect('${opt.label}', this)">
-            <span class="opt-prefix">${opt.label}</span>
-            <span class="opt-text hindi-font">${escapeHTML(opt.text)}</span>
-        </button>
-    `).join('');
+.hindi-font {
+    font-family: 'Noto Sans Devanagari', 'Plus Jakarta Sans', sans-serif !important;
 }
 
-function handleOptionSelect(selectedLabel, btnElement) {
-    const q = currentQuiz.questions[currentQuiz.index];
-    const allBtns = document.querySelectorAll('.option-card');
-    allBtns.forEach(b => b.classList.add('locked'));
-
-    if (navigator.vibrate) navigator.vibrate(selectedLabel === q.answer ? 30 : [40, 40, 40]);
-
-    if (selectedLabel === q.answer) {
-        btnElement.classList.add('correct');
-        currentQuiz.score++;
-    } else {
-        btnElement.classList.add('wrong');
-        currentQuiz.wrong++;
-        allBtns.forEach(b => {
-            if (b.querySelector('.opt-prefix').textContent === q.answer) {
-                b.classList.add('correct');
-            }
-        });
-    }
-
-    if (q.explanation) {
-        document.getElementById('explanation-text').textContent = q.explanation;
-        document.getElementById('explanation-box').classList.remove('hidden');
-    }
-
-    if (currentQuiz.index < currentQuiz.questions.length - 1) {
-        document.getElementById('next-btn').classList.remove('hidden');
-    } else {
-        document.getElementById('finish-btn').classList.remove('hidden');
-    }
+#app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 540px;
+    margin: 0 auto;
+    position: relative;
+    background: radial-gradient(circle at 50% 0%, #151833 0%, var(--bg-base) 70%);
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
 }
 
-function nextQuestion() {
-    currentQuiz.index++;
-    renderQuizQuestion();
+/* HEADER */
+#top-header {
+    height: var(--header-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: rgba(8, 9, 17, 0.85);
+    backdrop-filter: blur(12px);
+    z-index: 50;
 }
 
-function quitQuiz() {
-    if (confirm('Kya aap quiz chhodna chahte hain?')) {
-        clearInterval(timerInterval);
-        showScreen('home');
-    }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--primary), var(--cyan));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    box-shadow: 0 0 15px var(--primary-glow);
 }
 
-function finishQuiz() {
-    clearInterval(timerInterval);
-    const total = currentQuiz.questions.length;
-    const accuracy = Math.round((currentQuiz.score / total) * 100);
-    const timeStr = document.getElementById('quiz-timer').textContent.replace('⏱ ', '');
+.brand-title { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.3px; }
+.brand-subtitle { font-size: 0.55rem; font-weight: 700; color: var(--cyan); letter-spacing: 1.5px; display: block; }
 
-    if (currentQuizChId !== 'combined') {
-        const ch = appData.chapters.find(c => c.id === currentQuizChId);
-        if (ch && (ch.bestScore === undefined || accuracy > ch.bestScore)) {
-            ch.bestScore = accuracy;
-        }
-    }
-
-    appData.stats.totalQuizzes++;
-    appData.stats.totalCorrect += currentQuiz.score;
-    appData.stats.totalQuestions += total;
-
-    appData.history.unshift({
-        id: Date.now(),
-        title: currentQuizChId === 'combined' ? 'Combined Test' : appData.chapters.find(c => c.id === currentQuizChId).name,
-        score: currentQuiz.score,
-        total: total,
-        accuracy: accuracy,
-        time: timeStr,
-        date: new Date().toLocaleDateString('hi-IN', { day: 'numeric', month: 'short' })
-    });
-
-    saveState();
-
-    document.getElementById('res-emoji').textContent = accuracy >= 80 ? '🏆' : accuracy >= 50 ? '👏' : '📚';
-    document.getElementById('res-title').textContent = accuracy >= 80 ? 'Outstanding Performance!' : accuracy >= 50 ? 'Good Effort!' : 'Keep Practicing!';
-    document.getElementById('res-percentage').textContent = `${accuracy}%`;
-    document.getElementById('res-correct').textContent = currentQuiz.score;
-    document.getElementById('res-wrong').textContent = currentQuiz.wrong;
-    document.getElementById('res-total').textContent = total;
-    document.getElementById('res-time').textContent = timeStr;
-
-    const circle = document.getElementById('ring-progress');
-    const circumference = 314.159;
-    circle.style.strokeDashoffset = circumference - (accuracy / 100) * circumference;
-
-    showScreen('result');
+.ai-key-btn {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-high);
+    padding: 6px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
 }
 
-// ==================== ANALYTICS ====================
-function renderAnalyticsView() {
-    document.getElementById('an-total-quizzes').textContent = appData.stats.totalQuizzes;
-    const avg = appData.stats.totalQuestions ? Math.round((appData.stats.totalCorrect / appData.stats.totalQuestions) * 100) : 0;
-    document.getElementById('an-avg-accuracy').textContent = `${avg}%`;
-
-    const container = document.getElementById('history-container');
-    if (!appData.history.length) {
-        container.innerHTML = `<p style="color:var(--text-low);font-size:0.8rem;text-align:center;padding:20px;">Abhi tak koi quiz record nahi hua.</p>`;
-        return;
-    }
-    container.innerHTML = appData.history.map(h => `
-        <div class="history-item">
-            <div class="hi-left">
-                <h5>${escapeHTML(h.title)}</h5>
-                <p>${h.date} • Duration: ${h.time}</p>
-            </div>
-            <div class="hi-right">
-                <div class="hi-score ${h.accuracy >= 70 ? 'text-green' : h.accuracy >= 40 ? 'text-amber' : 'text-red'}">${h.accuracy}%</div>
-                <small style="color:var(--text-low);font-size:0.7rem">${h.score}/${h.total} Correct</small>
-            </div>
-        </div>
-    `).join('');
+.ai-key-btn.active-key {
+    border-color: var(--emerald);
+    color: var(--emerald);
+    background: var(--emerald-bg);
 }
 
-function clearStatsData() {
-    if (confirm('Kya aap sari history aur stats clear karna chahte hain?')) {
-        appData.history = [];
-        appData.stats = { totalQuizzes: 0, totalCorrect: 0, totalQuestions: 0 };
-        saveState();
-    }
+/* SCREENS */
+#screens { flex: 1; position: relative; overflow: hidden; }
+.screen {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    display: none;
+    padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 15px);
+    scrollbar-width: none;
+}
+.screen::-webkit-scrollbar { display: none; }
+.screen.active { display: block; animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-function escapeHTML(str) {
-    const p = document.createElement('p');
-    p.textContent = str;
-    return p.innerHTML;
+.content-wrap { padding: 18px; }
+
+/* HERO CARD */
+.hero-card {
+    background: linear-gradient(135deg, #181C38 0%, #111428 100%);
+    border: 1px solid var(--border-highlight);
+    border-radius: var(--radius-lg);
+    padding: 22px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 20px;
 }
 
-window.onload = loadState;
-```
+.hero-glow {
+    position: absolute;
+    top: -30px;
+    right: -30px;
+    width: 140px;
+    height: 140px;
+    background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+}
+
+.hero-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: var(--primary-light);
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+}
+
+.hero-card h2 { font-size: 1.4rem; font-weight: 800; line-height: 1.3; margin-bottom: 8px; }
+.gradient-text {
+    background: linear-gradient(135deg, #A5B4FC, var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.hero-card p { color: var(--text-med); font-size: 0.82rem; line-height: 1.5; margin-bottom: 16px; }
+.hero-stats { display: flex; gap: 10px; }
+.stat-pill {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border-subtle);
+    padding: 5px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    color: var(--text-med);
+}
+.stat-pill b { color: var(--text-high); }
+
+/* SECTION TITLES */
+.section-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text-high);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.text-link { background: none; border: none; color: var(--primary-light); font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+
+/* ACTION GRID */
+.action-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.action-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.action-card:active { transform: scale(0.97); background: var(--bg-surface-elevated); }
+
+.ai-glow-card {
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+}
+
+.card-icon {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+}
+
+.gradient-purple { background: linear-gradient(135deg, #6366F1, #4338CA); }
+.gradient-cyan   { background: linear-gradient(135deg, #06B6D4, #0E7490); }
+.gradient-amber  { background: linear-gradient(135deg, #F59E0B, #B45309); }
+.gradient-emerald{ background: linear-gradient(135deg, #10B981, #047857); }
+
+.card-info h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 2px; }
+.card-info p { font-size: 0.7rem; color: var(--text-med); }
+
+/* CHAPTERS */
+.page-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.count-badge {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--primary-light);
+}
+
+.search-box {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.search-box input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-high);
+    font-size: 0.88rem;
+    width: 100%;
+}
+
+.chapters-grid, .recent-list { display: flex; flex-direction: column; gap: 10px; }
+
+.ch-item-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.ch-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.ch-icon-pill {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 10px;
+    background: var(--bg-surface-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    border: 1px solid var(--border-subtle);
+}
+
+.ch-details h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ch-meta { font-size: 0.72rem; color: var(--text-med); display: flex; gap: 8px; }
+
+.ch-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-add-page-chip {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: var(--primary-light);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+}
+
+.btn-add-page-chip:hover {
+    background: var(--primary);
+    color: #FFF;
+}
+
+.btn-icon-ghost {
+    background: none;
+    border: none;
+    color: var(--text-low);
+    font-size: 1rem;
+    padding: 6px;
+    cursor: pointer;
+}
+
+/* QUIZ ACTIVE */
+.quiz-wrap { padding: 16px; display: flex; flex-direction: column; min-height: 100%; }
+.quiz-header-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.circle-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-med);
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.quiz-info-center { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.chapter-tag {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--cyan);
+    max-width: 180px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.quiz-meta-row { display: flex; gap: 8px; }
+.meta-badge, .timer-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: var(--radius-full);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+}
+.timer-badge { color: var(--amber); }
+
+.score-pills { display: flex; gap: 6px; }
+.pill-green, .pill-red { padding: 3px 8px; border-radius: var(--radius-full); font-size: 0.75rem; font-weight: 800; }
+.pill-green { background: var(--emerald-bg); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.3); }
+.pill-red { background: var(--rose-bg); color: var(--rose); border: 1px solid rgba(244, 63, 94, 0.3); }
+
+.progress-track {
+    height: 6px;
+    background: var(--bg-surface-elevated);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--primary), var(--cyan));
+    transition: width 0.35s ease;
+}
+
+.question-container {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.q-header-tag { font-size: 0.68rem; font-weight: 800; color: var(--primary-light); letter-spacing: 1.2px; margin-bottom: 8px; }
+.question-heading { font-size: 1.08rem; font-weight: 600; line-height: 1.6; }
+
+.options-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.option-card {
+    background: var(--bg-surface);
+    border: 2px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    color: var(--text-high);
+    text-align: left;
+    width: 100%;
+    font-size: 0.95rem;
+}
+
+.opt-prefix {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 50%;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-highlight);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.82rem;
+    color: var(--text-med);
+}
+
+.opt-text { flex: 1; line-height: 1.5; }
+
+.option-card.correct {
+    border-color: var(--emerald) !important;
+    background: var(--emerald-bg) !important;
+}
+.option-card.correct .opt-prefix {
+    background: var(--emerald);
+    color: #000;
+    border-color: var(--emerald);
+}
+
+.option-card.wrong {
+    border-color: var(--rose) !important;
+    background: var(--rose-bg) !important;
+}
+.option-card.wrong .opt-prefix {
+    background: var(--rose);
+    color: #FFF;
+    border-color: var(--rose);
+}
+.option-card.locked { pointer-events: none; }
+
+.explanation-card {
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-left: 4px solid var(--primary);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    margin-bottom: 20px;
+}
+.exp-title { font-size: 0.72rem; font-weight: 800; color: var(--primary-light); margin-bottom: 6px; }
+.exp-content { font-size: 0.88rem; color: var(--text-med); line-height: 1.6; }
+
+/* BUTTONS */
+.btn {
+    padding: 14px 22px;
+    border-radius: var(--radius-md);
+    font-size: 0.94rem;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: linear-gradient(135deg, var(--primary), #4F46E5); color: #FFF; }
+.btn-success { background: linear-gradient(135deg, var(--emerald), #059669); color: #000; }
+.btn-secondary { background: var(--bg-surface-elevated); border: 1px solid var(--border-highlight); color: var(--text-high); }
+.btn-glow { box-shadow: 0 0 25px var(--primary-glow); }
+.btn-block { width: 100%; }
+
+/* RESULT */
+.text-center { text-align: center; }
+.result-badge-anim { font-size: 3.8rem; margin: 15px 0 10px; }
+.result-heading { font-size: 1.6rem; font-weight: 800; margin-bottom: 4px; }
+.result-sub { font-size: 0.82rem; color: var(--text-med); margin-bottom: 24px; }
+
+.circle-container { position: relative; width: 130px; height: 130px; margin: 0 auto 24px; }
+.progress-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--bg-surface-elevated); stroke-width: 9; }
+.ring-fill {
+    fill: none;
+    stroke: var(--emerald);
+    stroke-width: 9;
+    stroke-linecap: round;
+    stroke-dasharray: 314.159;
+    stroke-dashoffset: 314.159;
+    transition: stroke-dashoffset 1.2s ease;
+}
+.ring-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ring-text span { font-size: 1.8rem; font-weight: 800; }
+.ring-text small { font-size: 0.6rem; font-weight: 700; color: var(--text-low); letter-spacing: 1px; }
+
+.metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 24px; }
+.metric-card { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px; text-align: center; }
+.metric-val { display: block; font-size: 1.45rem; font-weight: 800; margin-bottom: 2px; }
+.metric-lbl { font-size: 0.7rem; font-weight: 600; color: var(--text-med); text-transform: uppercase; }
+
+.text-green { color: var(--emerald); }
+.text-red   { color: var(--rose); }
+.text-amber { color: var(--amber); }
+.text-cyan  { color: var(--cyan); }
+.text-emerald{ color: var(--emerald); }
+
+.result-actions { display: flex; flex-direction: column; gap: 10px; }
+
+/* HISTORY LIST */
+.analytics-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px; }
+.an-card { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 18px; text-align: center; }
+.an-val { font-size: 1.8rem; font-weight: 800; display: block; }
+.an-lbl { font-size: 0.72rem; color: var(--text-med); font-weight: 600; }
+
+.history-stack { display: flex; flex-direction: column; gap: 8px; }
+.history-item { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; }
+.hi-left h5 { font-size: 0.85rem; font-weight: 700; margin-bottom: 2px; }
+.hi-left p { font-size: 0.7rem; color: var(--text-low); }
+.hi-right { text-align: right; }
+.hi-score { font-size: 1.05rem; font-weight: 800; }
+
+.icon-chip {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-high);
+    padding: 6px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+/* BOTTOM NAV */
+#bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 540px;
+    margin: 0 auto;
+    height: calc(var(--nav-height) + var(--safe-bottom));
+    padding-bottom: var(--safe-bottom);
+    background: rgba(10, 12, 22, 0.95);
+    border-top: 1px solid var(--border-subtle);
+    backdrop-filter: blur(16px);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 100;
+}
+
+.nav-btn {
+    background: none;
+    border: none;
+    color: var(--text-low);
+    font-size: 0.65rem;
+    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 8px 14px;
+}
+.nav-btn.active { color: var(--primary-light); }
+.n-icon { font-size: 1.3rem; }
+.nav-floating {
+    background: linear-gradient(135deg, var(--primary), #4F46E5) !important;
+    color: #FFF !important;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin-top: -18px;
+    box-shadow: 0 4px 20px var(--primary-glow);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.n-icon-plus { font-size: 1.4rem; }
+
+/* MODALS */
+.bottom-sheet-modal { position: fixed; inset: 0; z-index: 200; display: none; align-items: flex-end; }
+.bottom-sheet-modal.active { display: flex; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(6px); }
+.modal-sheet {
+    position: relative;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-highlight);
+    border-radius: 24px 24px 0 0;
+    width: 100%;
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 20px 20px calc(20px + var(--safe-bottom));
+}
+
+.sheet-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--border-highlight); margin: 0 auto 16px; }
+.sheet-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.sheet-header h3 { font-size: 1.1rem; font-weight: 800; }
+.close-icon { background: var(--bg-surface-elevated); border: none; color: var(--text-med); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
+
+/* RADIO PILL SWITCHER */
+.radio-tab-box {
+    display: flex;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    gap: 4px;
+    margin-bottom: 14px;
+}
+
+.radio-pill {
+    flex: 1;
+    text-align: center;
+    padding: 8px 6px;
+    border-radius: 10px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--text-med);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.radio-pill.active {
+    background: var(--primary);
+    color: #FFF;
+}
+
+.custom-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 16px;
+    padding-right: 40px;
+}
+
+.input-group { margin-bottom: 16px; }
+.input-group label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--text-med); margin-bottom: 6px; }
+.custom-input {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    color: var(--text-high);
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.tab-toggle-pill {
+    display: flex;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    gap: 4px;
+    margin-bottom: 16px;
+}
+.pill-btn {
+    flex: 1;
+    padding: 8px 4px;
+    border-radius: 10px;
+    background: none;
+    border: none;
+    color: var(--text-med);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.pill-btn.active { background: var(--primary); color: #FFF; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+.custom-textarea {
+    width: 100%;
+    height: 160px;
+    padding: 12px;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    color: var(--text-high);
+    font-size: 0.85rem;
+    resize: none;
+    margin-bottom: 14px;
+    outline: none;
+}
+
+.file-drop-box {
+    border: 2px dashed var(--border-highlight);
+    border-radius: var(--radius-md);
+    padding: 24px 16px;
+    text-align: center;
+    background: var(--bg-base);
+    margin-bottom: 14px;
+    cursor: pointer;
+}
+.camera-box { border-color: var(--primary); background: rgba(99, 102, 241, 0.05); }
+.drop-icon { font-size: 2.2rem; display: block; margin-bottom: 6px; }
+.file-drop-box h4 { font-size: 0.9rem; margin-bottom: 4px; }
+.file-drop-box p { font-size: 0.75rem; color: var(--text-med); }
+
+/* MULTI IMAGE PREVIEW */
+.multi-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.preview-thumb {
+    position: relative;
+    height: 75px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border-highlight);
+}
+
+.preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.page-tag {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    background: rgba(0,0,0,0.75);
+    color: #FFF;
+    font-size: 0.6rem;
+    font-weight: 800;
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+
+/* SETUP SETTINGS */
+.setup-header-card { background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px; }
+.setup-tag { font-size: 0.65rem; font-weight: 800; color: var(--cyan); }
+.setting-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-subtle); margin-bottom: 8px; }
+.setting-label span { display: block; font-size: 0.88rem; font-weight: 700; }
+.setting-label small { font-size: 0.72rem; color: var(--text-med); }
+.input-mini { width: 70px; padding: 8px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-high); font-size: 0.95rem; font-weight: 700; text-align: center; }
+
+.switch { position: relative; display: inline-block; width: 46px; height: 26px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; inset: 0; background-color: var(--bg-base); border: 1px solid var(--border-highlight); border-radius: 34px; transition: 0.3s; cursor: pointer; }
+.slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: 0.3s; }
+input:checked + .slider { background-color: var(--primary); border-color: var(--primary); }
+input:checked + .slider:before { transform: translateX(20px); }
+
+/* SCANNER ANIMATION */
+.loader-content { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 70vh; text-align: center; }
+.scanner-box { width: 64px; height: 64px; border-radius: 18px; background: var(--bg-surface-elevated); border: 1px solid var(--border-highlight); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; margin-bottom: 16px; }
+.scanner-icon { font-size: 1.8rem; }
+.scanner-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); animation: scan 1.2s ease-in-out infinite; }
+@keyframes scan { 0%, 100% { top: 0; } 50% { top: 60px; } }
+.hidden { display: none !important; }
