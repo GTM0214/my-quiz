@@ -3,38 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Quiz Master Pro</title>
+    <title>Quiz Master Pro - Multi-Page AI Edition</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap" rel="stylesheet">
     
-    <!-- CSS File Link -->
     <link rel="stylesheet" href="style.css">
     
-    <!-- PDF & Word Readers -->
+    <!-- PDF & Word Parsers -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
 <body>
 <div id="app-shell">
-    <!-- TOP HEADER -->
+    <!-- HEADER -->
     <header id="top-header">
         <div class="brand">
             <div class="brand-icon">⚡</div>
             <div class="brand-text">
                 <span class="brand-title">QuizMaster</span>
-                <span class="brand-subtitle">PRO EDITION</span>
+                <span class="brand-subtitle">MULTI-PAGE AI PRO</span>
             </div>
         </div>
         <div class="header-actions">
-            <button class="icon-chip" onclick="openAddModal()">
-                <span>➕</span> <span class="chip-text">Add Quiz</span>
+            <button class="ai-key-btn" onclick="openKeyModal()" id="key-status-btn">
+                <span>🔑</span> <span id="key-btn-txt">Set AI Key</span>
             </button>
         </div>
     </header>
 
-    <!-- SCREEN CONTAINER -->
+    <!-- SCREENS CONTAINER -->
     <main id="screens">
         <!-- 1. HOME SCREEN -->
         <section id="home-screen" class="screen active">
@@ -42,9 +41,9 @@
                 <!-- HERO CARD -->
                 <div class="hero-card">
                     <div class="hero-glow"></div>
-                    <div class="hero-badge">🚀 SMART PRACTICE</div>
-                    <h2>Apni Tayyari Ko<br><span class="gradient-text">Agale Level Pe Le Jao</span></h2>
-                    <p>Word, PDF ya Text paste karke instant interactive test banao.</p>
+                    <div class="hero-badge">📚 MULTI-PAGE SCANNER</div>
+                    <h2>Kitab Ke Saare Page Kheecho<br><span class="gradient-text">Ek Hi Chapter Me Jodo!</span></h2>
+                    <p>Single ya Multiple photos select karein, AI apne aap sabhi pages ko ek chapter me jod dega.</p>
                     <div class="hero-stats">
                         <div class="stat-pill"><b id="quick-ch-count">0</b> Chapters</div>
                         <div class="stat-pill"><b id="quick-q-count">0</b> Questions</div>
@@ -54,32 +53,32 @@
                 <!-- QUICK ACTIONS -->
                 <div class="section-title">⚡ Quick Actions</div>
                 <div class="action-grid">
-                    <div class="action-card" onclick="openAddModal()">
-                        <div class="card-icon gradient-purple">➕</div>
+                    <div class="action-card ai-glow-card" onclick="openCameraModal()">
+                        <div class="card-icon gradient-purple">📸</div>
                         <div class="card-info">
-                            <h4>Add New Quiz</h4>
-                            <p>Text / Word / PDF</p>
+                            <h4>Scan Photo(s)</h4>
+                            <p>Single / Multi-page</p>
+                        </div>
+                    </div>
+                    <div class="action-card" onclick="openAddModal()">
+                        <div class="card-icon gradient-cyan">✍️</div>
+                        <div class="card-info">
+                            <h4>Text / PDF / Word</h4>
+                            <p>Manual Upload</p>
                         </div>
                     </div>
                     <div class="action-card" onclick="openQuizSetup('combined')">
-                        <div class="card-icon gradient-cyan">🔀</div>
+                        <div class="card-icon gradient-amber">🔀</div>
                         <div class="card-info">
                             <h4>Mega Combined</h4>
                             <p>All chapters mixed</p>
-                        </div>
-                    </div>
-                    <div class="action-card" onclick="switchNav('chapters')">
-                        <div class="card-icon gradient-amber">📋</div>
-                        <div class="card-info">
-                            <h4>Playlist</h4>
-                            <p>Chapterwise test</p>
                         </div>
                     </div>
                     <div class="action-card" onclick="switchNav('analytics')">
                         <div class="card-icon gradient-emerald">📊</div>
                         <div class="card-info">
                             <h4>Analytics</h4>
-                            <p>Progress & Trends</p>
+                            <p>Accuracy & Progress</p>
                         </div>
                     </div>
                 </div>
@@ -98,7 +97,7 @@
             <div class="content-wrap">
                 <div class="page-title-row">
                     <h2>📋 Chapter Playlist</h2>
-                    <span class="count-badge" id="chapter-total-badge">0</span>
+                    <span class="count-badge" id="chapter-total-badge">0 Chapters</span>
                 </div>
                 <div class="search-box">
                     <span>🔍</span>
@@ -111,7 +110,6 @@
         <!-- 3. QUIZ SCREEN -->
         <section id="quiz-screen" class="screen">
             <div class="quiz-wrap">
-                <!-- TOP BAR -->
                 <div class="quiz-header-bar">
                     <button class="circle-btn" onclick="quitQuiz()">✕</button>
                     <div class="quiz-info-center">
@@ -127,27 +125,22 @@
                     </div>
                 </div>
 
-                <!-- PROGRESS LINE -->
                 <div class="progress-track">
                     <div id="progress-bar-fill" class="progress-fill"></div>
                 </div>
 
-                <!-- QUESTION CARD -->
                 <div class="question-container">
                     <div class="q-header-tag" id="q-number-tag">QUESTION 1</div>
-                    <h3 id="question-text" class="question-heading">Loading question...</h3>
+                    <h3 id="question-text" class="question-heading hindi-font">Loading question...</h3>
                 </div>
 
-                <!-- OPTIONS -->
                 <div id="options-container" class="options-group"></div>
 
-                <!-- EXPLANATION -->
                 <div id="explanation-box" class="explanation-card hidden">
-                    <div class="exp-title"><span>📖</span> EXPLANATION</div>
-                    <p id="explanation-text" class="exp-content"></p>
+                    <div class="exp-title"><span>📖</span> व्याख्या / EXPLANATION</div>
+                    <p id="explanation-text" class="exp-content hindi-font"></p>
                 </div>
 
-                <!-- FOOTER NAV -->
                 <div class="quiz-footer">
                     <button id="next-btn" class="btn btn-primary btn-glow hidden" onclick="nextQuestion()">
                         Next Question ➡
@@ -164,9 +157,8 @@
             <div class="content-wrap text-center">
                 <div class="result-badge-anim" id="res-emoji">🎉</div>
                 <h1 class="result-heading" id="res-title">Quiz Completed!</h1>
-                <p class="result-sub">Yahan aapka comprehensive analysis hai</p>
+                <p class="result-sub">Analysis & Accuracy Report</p>
 
-                <!-- CIRCLE PROGRESS -->
                 <div class="circle-container">
                     <svg viewBox="0 0 120 120" class="progress-ring">
                         <circle cx="60" cy="60" r="50" class="ring-bg"/>
@@ -178,7 +170,6 @@
                     </div>
                 </div>
 
-                <!-- METRICS GRID -->
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <span class="metric-val text-green" id="res-correct">0</span>
@@ -198,7 +189,6 @@
                     </div>
                 </div>
 
-                <!-- ACTIONS -->
                 <div class="result-actions">
                     <button class="btn btn-primary" onclick="showScreen('home')">🏠 Back to Home</button>
                     <button class="btn btn-secondary" onclick="openQuizSetup(currentQuizChId)">🔄 Retake Quiz</button>
@@ -214,7 +204,6 @@
                     <button class="icon-chip text-red" onclick="clearStatsData()">Clear All</button>
                 </div>
 
-                <!-- TOP CARDS -->
                 <div class="analytics-metrics">
                     <div class="an-card">
                         <span class="an-val" id="an-total-quizzes">0</span>
@@ -226,7 +215,6 @@
                     </div>
                 </div>
 
-                <!-- HISTORY LIST -->
                 <div class="section-title">📜 Test History</div>
                 <div id="history-container" class="history-stack"></div>
             </div>
@@ -237,10 +225,10 @@
             <div class="loader-content">
                 <div class="scanner-box">
                     <div class="scanner-bar"></div>
-                    <div class="scanner-icon">⚡</div>
+                    <div class="scanner-icon">🤖</div>
                 </div>
-                <h3 id="loading-text">Extracting Questions...</h3>
-                <p>AI Engine smart parser is running</p>
+                <h3 id="loading-text">Gemini AI Photo Scan Kar Raha Hai...</h3>
+                <p id="loading-subtext">Hindi Devanagari text & questions decode ho rahe hain</p>
             </div>
         </section>
     </main>
@@ -255,8 +243,8 @@
             <span class="n-icon">📋</span>
             <span class="n-lbl">Chapters</span>
         </button>
-        <button class="nav-btn nav-floating" onclick="openAddModal()">
-            <span class="n-icon-plus">➕</span>
+        <button class="nav-btn nav-floating" onclick="openCameraModal()">
+            <span class="n-icon-plus">📸</span>
         </button>
         <button class="nav-btn" data-screen="analytics" onclick="switchNav('analytics')">
             <span class="n-icon">📊</span>
@@ -264,67 +252,149 @@
         </button>
     </nav>
 
-    <!-- MODAL: ADD QUIZ -->
+    <!-- MODAL 1: AI CAMERA / MULTI-PAGE SCANNER -->
+    <div id="camera-modal" class="bottom-sheet-modal">
+        <div class="modal-backdrop" onclick="closeCameraModal()"></div>
+        <div class="modal-sheet">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <h3>📸 AI Photo to Quiz (Multi-Page)</h3>
+                <button class="close-icon" onclick="closeCameraModal()">✕</button>
+            </div>
+
+            <!-- MODE SELECTOR: NEW VS EXISTING CHAPTER -->
+            <div class="radio-tab-box">
+                <label class="radio-pill active" id="pill-mode-new" onclick="setChapterTargetMode('new')">
+                    <span>✨ Naya Chapter Banao</span>
+                </label>
+                <label class="radio-pill" id="pill-mode-existing" onclick="setChapterTargetMode('existing')">
+                    <span>➕ Purane Chapter Me Jodo</span>
+                </label>
+            </div>
+
+            <!-- New Chapter Input -->
+            <div class="input-group" id="group-new-ch">
+                <label>Naye Chapter Ka Naam</label>
+                <input type="text" id="ai-ch-name" placeholder="e.g. Hindi Vyakaran - Chapter 2" class="custom-input">
+            </div>
+
+            <!-- Existing Chapter Dropdown -->
+            <div class="input-group hidden" id="group-existing-ch">
+                <label>Kis Chapter Me Naye Page Jodne Hain?</label>
+                <select id="ai-existing-ch-select" class="custom-input custom-select"></select>
+            </div>
+
+            <div class="file-drop-box camera-box" onclick="document.getElementById('ai-camera-file').click()">
+                <span class="drop-icon">📷</span>
+                <h4>Camera Se Photo Lein ya Gallery Se Chunein</h4>
+                <p id="camera-file-label">Aap ek saath 1 ya zyada photos bhi select kar sakte hain</p>
+                <!-- MULTIPLE PHOTOS SUPPORT -->
+                <input type="file" id="ai-camera-file" accept="image/*" multiple class="hidden" onchange="handleMultiImageSelect(this)">
+            </div>
+
+            <div id="multi-preview-container" class="multi-preview-grid hidden"></div>
+
+            <button class="btn btn-primary btn-block btn-glow" id="ai-scan-btn" onclick="processAiPhotoSubmit()">
+                ✨ AI Scan & Save All Pages
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 2: MANUAL ADD (TEXT / WORD / PDF) -->
     <div id="add-modal" class="bottom-sheet-modal">
         <div class="modal-backdrop" onclick="closeAddModal()"></div>
         <div class="modal-sheet">
             <div class="sheet-handle"></div>
             <div class="sheet-header">
-                <h3>Add New Quiz</h3>
+                <h3>Add Quiz (Manual)</h3>
                 <button class="close-icon" onclick="closeAddModal()">✕</button>
             </div>
 
-            <div class="input-group">
-                <label>Chapter / Subject Name</label>
-                <input type="text" id="add-ch-name" placeholder="e.g. Modern History - Chapter 4" class="custom-input">
+            <!-- MODE SELECTOR -->
+            <div class="radio-tab-box">
+                <label class="radio-pill active" id="pill-manual-new" onclick="setManualTargetMode('new')">
+                    <span>✨ Naya Chapter</span>
+                </label>
+                <label class="radio-pill" id="pill-manual-existing" onclick="setManualTargetMode('existing')">
+                    <span>➕ Purane Me Jodo</span>
+                </label>
             </div>
 
-            <!-- TAB TOGGLE -->
+            <div class="input-group" id="group-manual-new">
+                <label>Chapter Ka Naam</label>
+                <input type="text" id="add-ch-name" placeholder="e.g. Science Chapter 1" class="custom-input">
+            </div>
+
+            <div class="input-group hidden" id="group-manual-existing">
+                <label>Chapter Chuno:</label>
+                <select id="manual-existing-ch-select" class="custom-input custom-select"></select>
+            </div>
+
             <div class="tab-toggle-pill">
                 <button class="pill-btn active" onclick="setAddTab('text')">✍️ Text Paste</button>
                 <button class="pill-btn" onclick="setAddTab('word')">📄 Word (.docx)</button>
                 <button class="pill-btn" onclick="setAddTab('pdf')">📑 PDF File</button>
             </div>
 
-            <!-- TAB 1: TEXT -->
             <div id="tab-text" class="tab-pane active">
-                <textarea id="paste-text-input" class="custom-textarea" placeholder="Paste questions here...
-
-Q1. Bharat ki rajdhani kya hai?
-A) Mumbai
-B) Delhi
-C) Kolkata
-D) Chennai
-Answer: B
-Explanation: Delhi rajdhani hai."></textarea>
-                <button class="btn btn-primary btn-block" onclick="processTextSubmit()">⚡ Generate Interactive Quiz</button>
+                <textarea id="paste-text-input" class="custom-textarea" placeholder="Questions paste karein...&#10;&#10;Q1. Bharat ki rajdhani kya hai?&#10;A) Mumbai&#10;B) Delhi&#10;Answer: B"></textarea>
+                <button class="btn btn-primary btn-block" onclick="processTextSubmit()">⚡ Generate / Append Quiz</button>
             </div>
 
-            <!-- TAB 2: WORD -->
             <div id="tab-word" class="tab-pane">
                 <div class="file-drop-box" onclick="document.getElementById('word-file-input').click()">
                     <span class="drop-icon">📄</span>
-                    <h4>Word Document Upload</h4>
-                    <p id="word-file-label">Click karke .docx file select karein</p>
+                    <h4>Word File (.docx) Select Karein</h4>
+                    <p id="word-file-label">Click karein</p>
                     <input type="file" id="word-file-input" accept=".docx" class="hidden" onchange="updateFileLabel(this, 'word-file-label')">
                 </div>
-                <button class="btn btn-primary btn-block" onclick="processWordSubmit()">⚡ Extract & Build Quiz</button>
+                <button class="btn btn-primary btn-block" onclick="processWordSubmit()">⚡ Process Word</button>
             </div>
 
-            <!-- TAB 3: PDF -->
             <div id="tab-pdf" class="tab-pane">
                 <div class="file-drop-box" onclick="document.getElementById('pdf-file-input').click()">
                     <span class="drop-icon">📑</span>
-                    <h4>PDF Document Upload</h4>
-                    <p id="pdf-file-label">Click karke .pdf file select karein</p>
+                    <h4>PDF File Select Karein</h4>
+                    <p id="pdf-file-label">Click karein</p>
                     <input type="file" id="pdf-file-input" accept=".pdf" class="hidden" onchange="updateFileLabel(this, 'pdf-file-label')">
                 </div>
-                <button class="btn btn-primary btn-block" onclick="processPdfSubmit()">⚡ Extract & Build Quiz</button>
+                <button class="btn btn-primary btn-block" onclick="processPdfSubmit()">⚡ Process PDF</button>
             </div>
         </div>
     </div>
 
-    <!-- MODAL: QUIZ SETUP -->
+    <!-- MODAL 3: API KEY SETTINGS -->
+    <div id="key-modal" class="bottom-sheet-modal">
+        <div class="modal-backdrop" onclick="closeKeyModal()"></div>
+        <div class="modal-sheet">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <h3>🔑 Gemini AI Key Setup</h3>
+                <button class="close-icon" onclick="closeKeyModal()">✕</button>
+            </div>
+            
+            <p style="font-size:0.8rem;color:var(--text-med);margin-bottom:12px;line-height:1.5">
+                Google AI Studio se apni <b>100% Free API Key</b> yahan daalein taaki photo scan direct chal sake:
+            </p>
+
+            <div class="input-group">
+                <label>Paste API Key (Starts with AIza...)</label>
+                <input type="password" id="gemini-api-key-input" placeholder="AIzaSy..." class="custom-input">
+            </div>
+
+            <div style="margin-bottom:16px">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--cyan);font-size:0.8rem;text-decoration:none">
+                    🔗 Click here to get Free API Key in 1 minute →
+                </a>
+            </div>
+
+            <button class="btn btn-primary btn-block" onclick="saveApiKey()">
+                💾 Save API Key
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 4: QUIZ SETUP -->
     <div id="setup-modal" class="bottom-sheet-modal">
         <div class="modal-backdrop" onclick="closeSetupModal()"></div>
         <div class="modal-sheet">
