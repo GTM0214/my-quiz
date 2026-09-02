@@ -1,5 +1,5 @@
 /* ==========================================================================
-   QUIZ MASTER PRO - 100% WORKING GEMINI 1.5 FLASH ENGINE
+   QUIZ MASTER PRO - AUTO-DETECTING GEMINI MODEL ENGINE (100% FIXED)
    ========================================================================== */
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -14,6 +14,7 @@ let currentQuiz = null;
 let currentQuizChId = null;
 let timerInterval = null;
 let selectedBase64Images = [];
+let activeGeminiModel = null; // Auto-detected model
 
 // ==================== INITIALIZATION ====================
 function loadState() {
@@ -30,7 +31,7 @@ function saveState() {
     updateUIOverview();
 }
 
-// ==================== API KEY MANAGEMENT & LIVE TESTER ====================
+// ==================== AUTO MODEL DISCOVERY & API MANAGEMENT ====================
 function getApiKey() {
     return (localStorage.getItem('GEMINI_API_KEY') || '').trim();
 }
@@ -41,7 +42,60 @@ function saveApiKey() {
     localStorage.setItem('GEMINI_API_KEY', key);
     closeKeyModal();
     updateApiKeyStatus();
-    alert('✅ API Key successfully save ho gayi! Ab "Test Key" karke check karein.');
+    alert('✅ API Key successfully save ho gayi! Ab "Test Key" dabakar model check karein.');
+}
+
+// Automatically finds which Gemini model is active on your API key
+async function findWorkingGeminiModel(key) {
+    if (activeGeminiModel) return activeGeminiModel;
+
+    // 1. Try fetching model list from Google API
+    try {
+        const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+        if (listRes.ok) {
+            const listData = await listRes.json();
+            if (listData.models && Array.isArray(listData.models)) {
+                // Filter models supporting generateContent
+                const available = listData.models
+                    .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"))
+                    .map(m => m.name.replace("models/", ""));
+
+                // Priority: Flash -> Pro -> Any
+                const preferred = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-pro-latest"];
+                for (const pref of preferred) {
+                    if (available.includes(pref)) {
+                        activeGeminiModel = pref;
+                        return pref;
+                    }
+                }
+                if (available.length > 0) {
+                    activeGeminiModel = available[0];
+                    return available[0];
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("ListModels check skipped, trying fallback list...", e);
+    }
+
+    // 2. Fallback candidate list if listModels is restricted
+    const fallbackList = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.0-pro"];
+    for (const candidate of fallbackList) {
+        try {
+            const testRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] })
+            });
+            if (testRes.ok) {
+                activeGeminiModel = candidate;
+                return candidate;
+            }
+        } catch (e) {}
+    }
+
+    // Default
+    return "gemini-1.5-flash-latest";
 }
 
 async function testApiKeyLive() {
@@ -52,11 +106,13 @@ async function testApiKeyLive() {
     }
 
     const testBtn = document.getElementById('test-key-btn');
-    if (testBtn) testBtn.textContent = '⏳ Testing...';
+    if (testBtn) testBtn.textContent = '⏳ Testing Models...';
 
     try {
-        // Calling Gemini 1.5 Flash
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+        activeGeminiModel = null;
+        const workingModel = await findWorkingGeminiModel(key);
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${workingModel}:generateContent?key=${key}`;
         const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -67,7 +123,7 @@ async function testApiKeyLive() {
 
         const data = await res.json();
         if (res.ok && data.candidates) {
-            alert('🎉 SUCCESS! Aapka gemini-1.5-flash model 100% active aur ready hai!');
+            alert(`🎉 SUCCESS!\n\nAapki API Key 100% active hai!\nWorking Model Found: [${workingModel}]\n\nAb aap photo scan kar sakte hain!`);
             localStorage.setItem('GEMINI_API_KEY', key);
             updateApiKeyStatus();
         } else {
@@ -227,7 +283,7 @@ function quickAddMorePages(chapterId) {
     document.getElementById('ai-existing-ch-select').value = chapterId;
 }
 
-// ==================== 📸 AUTO COMPRESS & PREVIEW ====================
+// ==================== 📸 IMAGE COMPRESSION ====================
 function openCameraModal() {
     selectedBase64Images = [];
     document.getElementById('ai-ch-name').value = '';
@@ -250,7 +306,6 @@ function setChapterTargetMode(mode) {
     document.getElementById('group-existing-ch').classList.toggle('hidden', !isExisting);
 }
 
-// Compresses camera image for ultra fast upload
 function compressImage(file, maxWidth = 1600, quality = 0.85) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -343,15 +398,19 @@ async function processAiPhotoSubmit() {
     closeCameraModal();
     showScreen('loading');
 
+    // Auto find working model first
+    document.getElementById('loading-text').textContent = 'AI Model connect ho raha hai...';
+    const workingModel = await findWorkingGeminiModel(apiKey);
+
     const totalPages = selectedBase64Images.length;
     let allExtractedQuestions = [];
 
     for (let i = 0; i < totalPages; i++) {
-        document.getElementById('loading-text').textContent = `Page ${i + 1} of ${totalPages} scan ho raha hai...`;
+        document.getElementById('loading-text').textContent = `Page ${i + 1} of ${totalPages} scan ho raha hai (${workingModel})...`;
         document.getElementById('loading-subtext').textContent = 'AI Hindi Devanagari questions decode kar raha hai...';
 
         try {
-            const pageQuestions = await extractQuestionsFromSingleImage(selectedBase64Images[i], apiKey);
+            const pageQuestions = await extractQuestionsFromSingleImage(selectedBase64Images[i], apiKey, workingModel);
             if (Array.isArray(pageQuestions) && pageQuestions.length > 0) {
                 allExtractedQuestions = allExtractedQuestions.concat(pageQuestions);
             }
@@ -362,7 +421,7 @@ async function processAiPhotoSubmit() {
     }
 
     if (allExtractedQuestions.length === 0) {
-        alert('❌ Photo se questions extract nahi ho sake!\n\nCheck karein:\n1. Key valid hai ya nahi (Set AI Key -> Test Key daba ke dekhein)\n2. Photo me sawal aur 4 options saaf dikh rahe hon.');
+        alert('❌ Photo se questions extract nahi ho sake!\n\nTips:\n1. Check karein ki photo me questions aur options saaf dikh rahe hon.\n2. Set AI Key -> Test Key daba kar key check karein.');
         showScreen('home');
         return;
     }
@@ -370,8 +429,8 @@ async function processAiPhotoSubmit() {
     saveOrAppendQuestions(targetChapterId, chapterName, allExtractedQuestions);
 }
 
-// Single Image AI Caller (Gemini 1.5 Flash)
-async function extractQuestionsFromSingleImage(base64Data, apiKey) {
+// Single Image AI Extraction using discovered model
+async function extractQuestionsFromSingleImage(base64Data, apiKey, modelName) {
     const prompt = `
 Extract all multiple-choice questions (MCQs) from this image.
 The text may be in Hindi (Devanagari script), English, or bilingual.
@@ -420,8 +479,7 @@ Format:
         }
     };
 
-    // Explicit gemini-1.5-flash endpoint
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
         method: 'POST',
@@ -437,15 +495,15 @@ Format:
 
     const data = await response.json();
     if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
-        throw new Error("AI ne koi content generate nahi kiya. Kripya photo check karein.");
+        throw new Error("AI ne koi content generate nahi kiya.");
     }
 
     let textResponse = data.candidates[0].content.parts[0].text.trim();
 
-    // Regex extraction to safely grab the JSON Array
+    // Regex extraction to safely grab JSON array
     const jsonMatch = textResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
     if (!jsonMatch) {
-        throw new Error("AI output me valid JSON question format nahi mila: " + textResponse.substring(0, 100));
+        throw new Error("AI output me valid JSON structure nahi mila.");
     }
 
     return JSON.parse(jsonMatch[0]);
