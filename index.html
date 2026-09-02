@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Quiz Master Pro - Multi-Page AI Edition</title>
+    <title>Quiz Master Pro - AI Vision Edition</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,7 +11,7 @@
     
     <link rel="stylesheet" href="style.css">
     
-    <!-- PDF & Word Parsers -->
+    <!-- Libraries for PDF & Word Parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
@@ -23,7 +23,7 @@
             <div class="brand-icon">⚡</div>
             <div class="brand-text">
                 <span class="brand-title">QuizMaster</span>
-                <span class="brand-subtitle">MULTI-PAGE AI PRO</span>
+                <span class="brand-subtitle">AI VISION PRO</span>
             </div>
         </div>
         <div class="header-actions">
@@ -41,9 +41,9 @@
                 <!-- HERO CARD -->
                 <div class="hero-card">
                     <div class="hero-glow"></div>
-                    <div class="hero-badge">📚 MULTI-PAGE SCANNER</div>
-                    <h2>Kitab Ke Saare Page Kheecho<br><span class="gradient-text">Ek Hi Chapter Me Jodo!</span></h2>
-                    <p>Single ya Multiple photos select karein, AI apne aap sabhi pages ko ek chapter me jod dega.</p>
+                    <div class="hero-badge">📚 SMART SCANNER</div>
+                    <h2>Kitab Ki Photo Se<br><span class="gradient-text">Interactive Quiz Banao!</span></h2>
+                    <p>Single ya Multi-page photos scan karein — AI aapke hisab se Quiz banayega.</p>
                     <div class="hero-stats">
                         <div class="stat-pill"><b id="quick-ch-count">0</b> Chapters</div>
                         <div class="stat-pill"><b id="quick-q-count">0</b> Questions</div>
@@ -57,7 +57,7 @@
                         <div class="card-icon gradient-purple">📸</div>
                         <div class="card-info">
                             <h4>Scan Photo(s)</h4>
-                            <p>Single / Multi-page</p>
+                            <p>Single / Multi-page AI</p>
                         </div>
                     </div>
                     <div class="action-card" onclick="openAddModal()">
@@ -78,7 +78,7 @@
                         <div class="card-icon gradient-emerald">📊</div>
                         <div class="card-info">
                             <h4>Analytics</h4>
-                            <p>Accuracy & Progress</p>
+                            <p>Progress & Trends</p>
                         </div>
                     </div>
                 </div>
@@ -258,24 +258,24 @@
         <div class="modal-sheet">
             <div class="sheet-handle"></div>
             <div class="sheet-header">
-                <h3>📸 AI Photo to Quiz (Multi-Page)</h3>
+                <h3>📸 AI Photo to Quiz</h3>
                 <button class="close-icon" onclick="closeCameraModal()">✕</button>
             </div>
 
-            <!-- MODE SELECTOR: NEW VS EXISTING CHAPTER -->
+            <!-- MODE SELECTOR -->
             <div class="radio-tab-box">
                 <label class="radio-pill active" id="pill-mode-new" onclick="setChapterTargetMode('new')">
                     <span>✨ Naya Chapter Banao</span>
                 </label>
                 <label class="radio-pill" id="pill-mode-existing" onclick="setChapterTargetMode('existing')">
-                    <span>➕ Purane Chapter Me Jodo</span>
+                    <span>➕ Purane Me Jodo</span>
                 </label>
             </div>
 
             <!-- New Chapter Input -->
             <div class="input-group" id="group-new-ch">
                 <label>Naye Chapter Ka Naam</label>
-                <input type="text" id="ai-ch-name" placeholder="e.g. Hindi Vyakaran - Chapter 2" class="custom-input">
+                <input type="text" id="ai-ch-name" placeholder="e.g. Hindi Vyakaran - Ch 2" class="custom-input">
             </div>
 
             <!-- Existing Chapter Dropdown -->
@@ -362,7 +362,7 @@
         </div>
     </div>
 
-    <!-- MODAL 3: API KEY SETTINGS WITH TEST BUTTON -->
+    <!-- MODAL 3: API KEY SETTINGS -->
     <div id="key-modal" class="bottom-sheet-modal">
         <div class="modal-backdrop" onclick="closeKeyModal()"></div>
         <div class="modal-sheet">
