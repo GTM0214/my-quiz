@@ -287,8 +287,7 @@
             <div class="file-drop-box camera-box" onclick="document.getElementById('ai-camera-file').click()">
                 <span class="drop-icon">📷</span>
                 <h4>Camera Se Photo Lein ya Gallery Se Chunein</h4>
-                <p id="camera-file-label">Aap ek saath 1 ya zyada photos bhi select kar sakte hain</p>
-                <!-- MULTIPLE PHOTOS SUPPORT -->
+                <p id="camera-file-label">Aap ek saath 1 ya zyada photos select kar sakte hain</p>
                 <input type="file" id="ai-camera-file" accept="image/*" multiple class="hidden" onchange="handleMultiImageSelect(this)">
             </div>
 
@@ -363,7 +362,7 @@
         </div>
     </div>
 
-    <!-- MODAL 3: API KEY SETTINGS -->
+    <!-- MODAL 3: API KEY SETTINGS WITH TEST BUTTON -->
     <div id="key-modal" class="bottom-sheet-modal">
         <div class="modal-backdrop" onclick="closeKeyModal()"></div>
         <div class="modal-sheet">
@@ -374,7 +373,7 @@
             </div>
             
             <p style="font-size:0.8rem;color:var(--text-med);margin-bottom:12px;line-height:1.5">
-                Google AI Studio se apni <b>100% Free API Key</b> yahan daalein taaki photo scan direct chal sake:
+                Google AI Studio ki <b>100% Free API Key</b> yahan paste karein:
             </p>
 
             <div class="input-group">
@@ -382,15 +381,20 @@
                 <input type="password" id="gemini-api-key-input" placeholder="AIzaSy..." class="custom-input">
             </div>
 
-            <div style="margin-bottom:16px">
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--cyan);font-size:0.8rem;text-decoration:none">
-                    🔗 Click here to get Free API Key in 1 minute →
-                </a>
+            <div style="display:flex;gap:8px;margin-bottom:14px">
+                <button class="btn btn-secondary" style="flex:1" id="test-key-btn" onclick="testApiKeyLive()">
+                    🔍 Test Key
+                </button>
+                <button class="btn btn-primary" style="flex:1" onclick="saveApiKey()">
+                    💾 Save Key
+                </button>
             </div>
 
-            <button class="btn btn-primary btn-block" onclick="saveApiKey()">
-                💾 Save API Key
-            </button>
+            <div style="margin-bottom:10px;text-align:center">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--cyan);font-size:0.8rem;text-decoration:none">
+                    🔗 Nayi Free Key lene ke liye yahan click karein →
+                </a>
+            </div>
         </div>
     </div>
 
