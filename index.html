@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Quiz Master Pro</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- CSS File Link -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- PDF & Word Readers -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+</head>
+<body>
+<div id="app-shell">
+    <!-- TOP HEADER -->
+    <header id="top-header">
+        <div class="brand">
+            <div class="brand-icon">⚡</div>
+            <div class="brand-text">
+                <span class="brand-title">QuizMaster</span>
+                <span class="brand-subtitle">PRO EDITION</span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="icon-chip" onclick="openAddModal()">
+                <span>➕</span> <span class="chip-text">Add Quiz</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- SCREEN CONTAINER -->
+    <main id="screens">
+        <!-- 1. HOME SCREEN -->
+        <section id="home-screen" class="screen active">
+            <div class="content-wrap">
+                <!-- HERO CARD -->
+                <div class="hero-card">
+                    <div class="hero-glow"></div>
+                    <div class="hero-badge">🚀 SMART PRACTICE</div>
+                    <h2>Apni Tayyari Ko<br><span class="gradient-text">Agale Level Pe Le Jao</span></h2>
+                    <p>Word, PDF ya Text paste karke instant interactive test banao.</p>
+                    <div class="hero-stats">
+                        <div class="stat-pill"><b id="quick-ch-count">0</b> Chapters</div>
+                        <div class="stat-pill"><b id="quick-q-count">0</b> Questions</div>
+                    </div>
+                </div>
+
+                <!-- QUICK ACTIONS -->
+                <div class="section-title">⚡ Quick Actions</div>
+                <div class="action-grid">
+                    <div class="action-card" onclick="openAddModal()">
+                        <div class="card-icon gradient-purple">➕</div>
+                        <div class="card-info">
+                            <h4>Add New Quiz</h4>
+                            <p>Text / Word / PDF</p>
+                        </div>
+                    </div>
+                    <div class="action-card" onclick="openQuizSetup('combined')">
+                        <div class="card-icon gradient-cyan">🔀</div>
+                        <div class="card-info">
+                            <h4>Mega Combined</h4>
+                            <p>All chapters mixed</p>
+                        </div>
+                    </div>
+                    <div class="action-card" onclick="switchNav('chapters')">
+                        <div class="card-icon gradient-amber">📋</div>
+                        <div class="card-info">
+                            <h4>Playlist</h4>
+                            <p>Chapterwise test</p>
+                        </div>
+                    </div>
+                    <div class="action-card" onclick="switchNav('analytics')">
+                        <div class="card-icon gradient-emerald">📊</div>
+                        <div class="card-info">
+                            <h4>Analytics</h4>
+                            <p>Progress & Trends</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RECENT PLAYLIST -->
+                <div class="section-title">
+                    <span>📖 Recent Chapters</span>
+                    <button class="text-link" onclick="switchNav('chapters')">View all →</button>
+                </div>
+                <div id="home-recent-list" class="recent-list"></div>
+            </div>
+        </section>
+
+        <!-- 2. CHAPTERS SCREEN -->
+        <section id="chapters-screen" class="screen">
+            <div class="content-wrap">
+                <div class="page-title-row">
+                    <h2>📋 Chapter Playlist</h2>
+                    <span class="count-badge" id="chapter-total-badge">0</span>
+                </div>
+                <div class="search-box">
+                    <span>🔍</span>
+                    <input type="text" id="chapter-search" placeholder="Search chapters..." oninput="filterChapters(this.value)">
+                </div>
+                <div id="chapters-list" class="chapters-grid"></div>
+            </div>
+        </section>
+
+        <!-- 3. QUIZ SCREEN -->
+        <section id="quiz-screen" class="screen">
+            <div class="quiz-wrap">
+                <!-- TOP BAR -->
+                <div class="quiz-header-bar">
+                    <button class="circle-btn" onclick="quitQuiz()">✕</button>
+                    <div class="quiz-info-center">
+                        <span id="quiz-chapter-tag" class="chapter-tag">Chapter</span>
+                        <div class="quiz-meta-row">
+                            <span id="q-counter-badge" class="meta-badge">Q 1/10</span>
+                            <span id="quiz-timer" class="timer-badge">⏱ 00:00</span>
+                        </div>
+                    </div>
+                    <div class="score-pills">
+                        <span class="pill-green" id="quiz-score-c">0</span>
+                        <span class="pill-red" id="quiz-score-w">0</span>
+                    </div>
+                </div>
+
+                <!-- PROGRESS LINE -->
+                <div class="progress-track">
+                    <div id="progress-bar-fill" class="progress-fill"></div>
+                </div>
+
+                <!-- QUESTION CARD -->
+                <div class="question-container">
+                    <div class="q-header-tag" id="q-number-tag">QUESTION 1</div>
+                    <h3 id="question-text" class="question-heading">Loading question...</h3>
+                </div>
+
+                <!-- OPTIONS -->
+                <div id="options-container" class="options-group"></div>
+
+                <!-- EXPLANATION -->
+                <div id="explanation-box" class="explanation-card hidden">
+                    <div class="exp-title"><span>📖</span> EXPLANATION</div>
+                    <p id="explanation-text" class="exp-content"></p>
+                </div>
+
+                <!-- FOOTER NAV -->
+                <div class="quiz-footer">
+                    <button id="next-btn" class="btn btn-primary btn-glow hidden" onclick="nextQuestion()">
+                        Next Question ➡
+                    </button>
+                    <button id="finish-btn" class="btn btn-success btn-glow hidden" onclick="finishQuiz()">
+                        🏁 Complete & View Analysis
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. RESULT SCREEN -->
+        <section id="result-screen" class="screen">
+            <div class="content-wrap text-center">
+                <div class="result-badge-anim" id="res-emoji">🎉</div>
+                <h1 class="result-heading" id="res-title">Quiz Completed!</h1>
+                <p class="result-sub">Yahan aapka comprehensive analysis hai</p>
+
+                <!-- CIRCLE PROGRESS -->
+                <div class="circle-container">
+                    <svg viewBox="0 0 120 120" class="progress-ring">
+                        <circle cx="60" cy="60" r="50" class="ring-bg"/>
+                        <circle cx="60" cy="60" r="50" id="ring-progress" class="ring-fill"/>
+                    </svg>
+                    <div class="ring-text">
+                        <span id="res-percentage">0%</span>
+                        <small>ACCURACY</small>
+                    </div>
+                </div>
+
+                <!-- METRICS GRID -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <span class="metric-val text-green" id="res-correct">0</span>
+                        <span class="metric-lbl">Correct</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-val text-red" id="res-wrong">0</span>
+                        <span class="metric-lbl">Wrong</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-val text-amber" id="res-total">0</span>
+                        <span class="metric-lbl">Total Qs</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-val text-cyan" id="res-time">00:00</span>
+                        <span class="metric-lbl">Duration</span>
+                    </div>
+                </div>
+
+                <!-- ACTIONS -->
+                <div class="result-actions">
+                    <button class="btn btn-primary" onclick="showScreen('home')">🏠 Back to Home</button>
+                    <button class="btn btn-secondary" onclick="openQuizSetup(currentQuizChId)">🔄 Retake Quiz</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. ANALYTICS SCREEN -->
+        <section id="analytics-screen" class="screen">
+            <div class="content-wrap">
+                <div class="page-title-row">
+                    <h2>📊 Performance Insights</h2>
+                    <button class="icon-chip text-red" onclick="clearStatsData()">Clear All</button>
+                </div>
+
+                <!-- TOP CARDS -->
+                <div class="analytics-metrics">
+                    <div class="an-card">
+                        <span class="an-val" id="an-total-quizzes">0</span>
+                        <span class="an-lbl">Tests Completed</span>
+                    </div>
+                    <div class="an-card">
+                        <span class="an-val text-emerald" id="an-avg-accuracy">0%</span>
+                        <span class="an-lbl">Avg Accuracy</span>
+                    </div>
+                </div>
+
+                <!-- HISTORY LIST -->
+                <div class="section-title">📜 Test History</div>
+                <div id="history-container" class="history-stack"></div>
+            </div>
+        </section>
+
+        <!-- 6. LOADING SCREEN -->
+        <section id="loading-screen" class="screen">
+            <div class="loader-content">
+                <div class="scanner-box">
+                    <div class="scanner-bar"></div>
+                    <div class="scanner-icon">⚡</div>
+                </div>
+                <h3 id="loading-text">Extracting Questions...</h3>
+                <p>AI Engine smart parser is running</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- BOTTOM NAVBAR -->
+    <nav id="bottom-nav">
+        <button class="nav-btn active" data-screen="home" onclick="switchNav('home')">
+            <span class="n-icon">🏠</span>
+            <span class="n-lbl">Home</span>
+        </button>
+        <button class="nav-btn" data-screen="chapters" onclick="switchNav('chapters')">
+            <span class="n-icon">📋</span>
+            <span class="n-lbl">Chapters</span>
+        </button>
+        <button class="nav-btn nav-floating" onclick="openAddModal()">
+            <span class="n-icon-plus">➕</span>
+        </button>
+        <button class="nav-btn" data-screen="analytics" onclick="switchNav('analytics')">
+            <span class="n-icon">📊</span>
+            <span class="n-lbl">Analytics</span>
+        </button>
+    </nav>
+
+    <!-- MODAL: ADD QUIZ -->
+    <div id="add-modal" class="bottom-sheet-modal">
+        <div class="modal-backdrop" onclick="closeAddModal()"></div>
+        <div class="modal-sheet">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <h3>Add New Quiz</h3>
+                <button class="close-icon" onclick="closeAddModal()">✕</button>
+            </div>
+
+            <div class="input-group">
+                <label>Chapter / Subject Name</label>
+                <input type="text" id="add-ch-name" placeholder="e.g. Modern History - Chapter 4" class="custom-input">
+            </div>
+
+            <!-- TAB TOGGLE -->
+            <div class="tab-toggle-pill">
+                <button class="pill-btn active" onclick="setAddTab('text')">✍️ Text Paste</button>
+                <button class="pill-btn" onclick="setAddTab('word')">📄 Word (.docx)</button>
+                <button class="pill-btn" onclick="setAddTab('pdf')">📑 PDF File</button>
+            </div>
+
+            <!-- TAB 1: TEXT -->
+            <div id="tab-text" class="tab-pane active">
+                <textarea id="paste-text-input" class="custom-textarea" placeholder="Paste questions here...
+
+Q1. Bharat ki rajdhani kya hai?
+A) Mumbai
+B) Delhi
+C) Kolkata
+D) Chennai
+Answer: B
+Explanation: Delhi rajdhani hai."></textarea>
+                <button class="btn btn-primary btn-block" onclick="processTextSubmit()">⚡ Generate Interactive Quiz</button>
+            </div>
+
+            <!-- TAB 2: WORD -->
+            <div id="tab-word" class="tab-pane">
+                <div class="file-drop-box" onclick="document.getElementById('word-file-input').click()">
+                    <span class="drop-icon">📄</span>
+                    <h4>Word Document Upload</h4>
+                    <p id="word-file-label">Click karke .docx file select karein</p>
+                    <input type="file" id="word-file-input" accept=".docx" class="hidden" onchange="updateFileLabel(this, 'word-file-label')">
+                </div>
+                <button class="btn btn-primary btn-block" onclick="processWordSubmit()">⚡ Extract & Build Quiz</button>
+            </div>
+
+            <!-- TAB 3: PDF -->
+            <div id="tab-pdf" class="tab-pane">
+                <div class="file-drop-box" onclick="document.getElementById('pdf-file-input').click()">
+                    <span class="drop-icon">📑</span>
+                    <h4>PDF Document Upload</h4>
+                    <p id="pdf-file-label">Click karke .pdf file select karein</p>
+                    <input type="file" id="pdf-file-input" accept=".pdf" class="hidden" onchange="updateFileLabel(this, 'pdf-file-label')">
+                </div>
+                <button class="btn btn-primary btn-block" onclick="processPdfSubmit()">⚡ Extract & Build Quiz</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: QUIZ SETUP -->
+    <div id="setup-modal" class="bottom-sheet-modal">
+        <div class="modal-backdrop" onclick="closeSetupModal()"></div>
+        <div class="modal-sheet">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <h3>⚙️ Test Configuration</h3>
+                <button class="close-icon" onclick="closeSetupModal()">✕</button>
+            </div>
+            
+            <div class="setup-header-card">
+                <span class="setup-tag">SELECTED CHAPTER</span>
+                <h4 id="setup-target-title">Chapter Name</h4>
+                <p id="setup-target-meta">Total Questions: 0</p>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>📌 Start From Question</span>
+                    <small>Kis number se shuru karein?</small>
+                </div>
+                <input type="number" id="setup-start-num" class="input-mini" value="1" min="1">
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>🔢 Number of Questions</span>
+                    <small>Kitne questions test me lene hain?</small>
+                </div>
+                <input type="number" id="setup-count-num" class="input-mini" value="10" min="1">
+            </div>
+
+            <div class="setting-row switch-row">
+                <div class="setting-label">
+                    <span>🔀 Randomize Questions</span>
+                    <small>Har baar naya sequence milega</small>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="setup-shuffle-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <button class="btn btn-primary btn-block btn-glow" onclick="launchQuizEngine()">
+                🚀 Start Interactive Test
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
