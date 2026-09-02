@@ -1,5 +1,5 @@
 /* ==========================================================================
-   QUIZ MASTER PRO - 100% WORKING GEMINI AI ENGINE (FIXED INLINEDATA BUG)
+   QUIZ MASTER PRO - 100% WORKING GEMINI 1.5 FLASH ENGINE
    ========================================================================== */
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -55,6 +55,7 @@ async function testApiKeyLive() {
     if (testBtn) testBtn.textContent = '⏳ Testing...';
 
     try {
+        // Calling Gemini 1.5 Flash
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
         const res = await fetch(url, {
             method: 'POST',
@@ -66,7 +67,7 @@ async function testApiKeyLive() {
 
         const data = await res.json();
         if (res.ok && data.candidates) {
-            alert('🎉 SUCCESS! Aapki Gemini API Key 100% sahi aur active hai!');
+            alert('🎉 SUCCESS! Aapka gemini-1.5-flash model 100% active aur ready hai!');
             localStorage.setItem('GEMINI_API_KEY', key);
             updateApiKeyStatus();
         } else {
@@ -74,7 +75,7 @@ async function testApiKeyLive() {
             alert('❌ Key Test Failed!\n\nGoogle Error: ' + errDetails + '\n\nTip: aistudio.google.com/app/apikey se nayi key banayein.');
         }
     } catch (e) {
-        alert('❌ Network / Connection Error: ' + e.message);
+        alert('❌ Network Error: ' + e.message);
     } finally {
         if (testBtn) testBtn.textContent = '🔍 Test Key';
     }
@@ -249,7 +250,7 @@ function setChapterTargetMode(mode) {
     document.getElementById('group-existing-ch').classList.toggle('hidden', !isExisting);
 }
 
-// High Quality Compression for Crisp Hindi Text
+// Compresses camera image for ultra fast upload
 function compressImage(file, maxWidth = 1600, quality = 0.85) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -295,7 +296,6 @@ async function handleMultiImageSelect(input) {
             const file = input.files[idx];
             try {
                 const compressedDataUrl = await compressImage(file);
-                // Strip metadata prefix safely
                 const b64 = compressedDataUrl.replace(/^data:image\/[a-z]+;base64,/, '');
                 selectedBase64Images.push(b64);
 
@@ -314,7 +314,7 @@ async function handleMultiImageSelect(input) {
     }
 }
 
-// ==================== 🤖 GEMINI AI PARSER (STRICT INLINEDATA) ====================
+// ==================== 🤖 GEMINI AI PARSER ====================
 async function processAiPhotoSubmit() {
     const apiKey = getApiKey();
     if (!apiKey) {
@@ -370,7 +370,7 @@ async function processAiPhotoSubmit() {
     saveOrAppendQuestions(targetChapterId, chapterName, allExtractedQuestions);
 }
 
-// Single Image AI Caller with Exact Gemini v1beta Structure (inlineData in CamelCase)
+// Single Image AI Caller (Gemini 1.5 Flash)
 async function extractQuestionsFromSingleImage(base64Data, apiKey) {
     const prompt = `
 Extract all multiple-choice questions (MCQs) from this image.
@@ -399,7 +399,6 @@ Format:
 ]
 `;
 
-    // Official REST API format: inlineData & mimeType must be camelCase
     const requestBody = {
         contents: [
             {
@@ -421,7 +420,7 @@ Format:
         }
     };
 
-    // Use gemini-1.5-flash
+    // Explicit gemini-1.5-flash endpoint
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
